@@ -3,6 +3,7 @@ import json
 import os
 import io
 import csv
+import numpy as np
 from analytics_engine import MarketAnalyticsEngine
 from ai_agent import MarketPulseAIAgent
 
@@ -455,25 +456,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         async function renderRawTable() {
             const key = document.getElementById('table-series-select').value || currentSeries;
-            const res = await fetch(`/api/series-table/${key}`);
-            const data = await res.json();
             const tbody = document.getElementById('raw-table-body');
-            tbody.innerHTML = '';
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500 font-mono animate-pulse">Carregando registros...</td></tr>';
 
-            data.slice(-50).reverse().forEach(row => {
-                const isPos = row.pct_change >= 0;
-                const color = isPos ? 'text-emerald-400' : 'text-rose-400';
-                tbody.innerHTML += `
-                    <tr class="hover:bg-gray-900/60 transition">
-                        <td class="p-2.5 font-semibold text-gray-200">${row.date}</td>
-                        <td class="p-2.5 font-bold text-white">${row.value.toLocaleString('pt-BR')}</td>
-                        <td class="p-2.5 text-gray-400">${row.sma_7 ? row.sma_7.toFixed(4) : '-'}</td>
-                        <td class="p-2.5 text-gray-400">${row.sma_21 ? row.sma_21.toFixed(4) : '-'}</td>
-                        <td class="p-2.5 ${color}">${row.pct_change ? row.pct_change.toFixed(2) + '%' : '-'}</td>
-                        <td class="p-2.5 text-purple-400">${row.rsi ? row.rsi.toFixed(1) : '-'}</td>
-                    </tr>
-                `;
-            });
+            try {
+                const res = await fetch(`/api/series-table/${key}`);
+                const data = await res.json();
+                tbody.innerHTML = '';
+
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhum dado encontrado para esta série.</td></tr>';
+                    return;
+                }
+
+                data.slice(-100).reverse().forEach(row => {
+                    const isPos = row.pct_change != null && row.pct_change >= 0;
+                    const color = row.pct_change != null ? (isPos ? 'text-emerald-400' : 'text-rose-400') : 'text-gray-500';
+                    const changeStr = row.pct_change != null ? `${isPos ? '+' : ''}${Number(row.pct_change).toFixed(2)}%` : '-';
+                    const sma7Str = row.sma_7 != null ? Number(row.sma_7).toFixed(4) : '-';
+                    const sma21Str = row.sma_21 != null ? Number(row.sma_21).toFixed(4) : '-';
+                    const rsiStr = row.rsi != null ? Number(row.rsi).toFixed(1) : '-';
+                    const valStr = row.value != null ? Number(row.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-';
+
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-900/60 transition border-b border-gray-800/40">
+                            <td class="p-2.5 font-semibold text-gray-200">${row.date}</td>
+                            <td class="p-2.5 font-bold text-white">${valStr}</td>
+                            <td class="p-2.5 text-cyan-400">${sma7Str}</td>
+                            <td class="p-2.5 text-amber-400">${sma21Str}</td>
+                            <td class="p-2.5 font-bold ${color}">${changeStr}</td>
+                            <td class="p-2.5 text-purple-400">${rsiStr}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Erro na tabela:", err);
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-400">Falha ao ler dados: ${err.message}</td></tr>`;
+            }
         }
 
         function switchTab(tab) {
@@ -486,6 +505,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (tab === 'terminal') {
                 setTimeout(() => Plotly.Plots.resize('plotly-container'), 50);
+            } else if (tab === 'data-table') {
+                renderRawTable();
+            } else if (tab === 'correlation') {
+                loadCorrelation();
             }
         }
 
@@ -585,6 +608,7 @@ def get_series_table(key):
         df = engine.dataframes[key]
         records = df.copy()
         records["date"] = records["date"].dt.strftime("%d/%m/%Y")
+        records = records.replace({np.nan: None})
         return jsonify(records.to_dict(orient="records"))
     return jsonify([])
 
