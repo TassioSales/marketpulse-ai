@@ -107,11 +107,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="glass-card rounded-2xl p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-800">
                     <div class="space-y-0.5">
-                        <h2 class="text-sm font-bold text-gray-100 flex items-center gap-2">
+                        <h2 class="text-sm font-bold text-gray-100 flex items-center gap-2" id="chart-main-title">
                             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                             Gráfico Avançado Multidimensional com Médias Móveis & Bandas de Bollinger (2σ)
                         </h2>
-                        <p class="text-[11px] text-gray-400">Canal estatístico de volatilidade, médias (SMA 7/21), projeção estocástica (15d) e subpainel RSI (14)</p>
+                        <p class="text-[11px] text-gray-400" id="chart-sub-title">Canal estatístico de volatilidade, médias (SMA 7/21) e subpainel RSI (14)</p>
                     </div>
                     
                     <!-- Asset Selectors -->
@@ -349,13 +349,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             selectDropdown.innerHTML = '';
 
             for (const [key, item] of Object.entries(allMetrics)) {
+                const isPos = item.daily_change_pct >= 0;
+                const changeColor = isPos ? 'text-emerald-400' : 'text-rose-400';
                 const activeClass = key === currentSeries 
-                    ? 'px-3 py-1 text-xs rounded-lg font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                    : 'px-3 py-1 text-xs rounded-lg font-medium bg-gray-900 text-gray-400 border border-gray-800 hover:text-gray-200';
+                    ? 'px-3 py-1.5 text-xs rounded-xl font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm' 
+                    : 'px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-900/90 text-gray-300 border border-gray-800 hover:border-gray-700 hover:text-white';
                 
                 container.innerHTML += `
-                    <button onclick="loadChart('${key}')" id="btn-chart-${key}" class="chart-pill ${activeClass}">
-                        ${item.icon} ${item.name.split(' (')[0]}
+                    <button onclick="loadChart('${key}')" id="btn-chart-${key}" class="chart-pill ${activeClass} flex items-center gap-2 transition">
+                        <span>${item.icon} ${item.name.split(' (')[0]}</span>
+                        <span class="font-mono font-bold text-white">${item.current_value.toLocaleString('pt-BR')}</span>
+                        <span class="text-[10px] font-mono ${changeColor}">(${isPos ? '+' : ''}${item.daily_change_pct}%)</span>
                     </button>
                 `;
 
@@ -367,11 +371,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         async function loadChart(key) {
             currentSeries = key;
-            document.querySelectorAll('.chart-pill').forEach(b => {
-                b.className = 'chart-pill px-3 py-1 text-xs rounded-lg font-medium bg-gray-900 text-gray-400 border border-gray-800 hover:text-gray-200';
-            });
-            const activeBtn = document.getElementById(`btn-chart-${key}`);
-            if (activeBtn) activeBtn.className = 'chart-pill px-3 py-1 text-xs rounded-lg font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+            populateAssetSelectors();
+
+            const item = allMetrics[key];
+            if (item) {
+                const isPos = item.daily_change_pct >= 0;
+                const changeColor = isPos ? 'text-emerald-400' : 'text-rose-400';
+                document.getElementById('chart-main-title').innerHTML = `
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                    <span class="text-white font-extrabold">${item.icon} ${item.name}</span>
+                    <span class="font-mono font-bold text-emerald-300 ml-2">${item.current_value.toLocaleString('pt-BR')} ${item.unit}</span>
+                    <span class="text-xs font-mono ${changeColor} ml-1.5 font-bold">(${isPos ? '+' : ''}${item.daily_change_pct}% hoje)</span>
+                `;
+                document.getElementById('chart-sub-title').innerHTML = `
+                    Suporte 60d: <b class="text-gray-200">${item.support_60d}</b> · Resistência 60d: <b class="text-gray-200">${item.resistance_60d}</b> · Volatilidade 30d: <b class="text-amber-300">${item.volatility_30d}%</b> · RSI (14): <b class="text-purple-300">${item.rsi} (${item.rsi_status})</b> · Data: <b class="text-gray-300">${item.last_date}</b>
+                `;
+            }
 
             renderKPIs(allMetrics);
 
@@ -380,32 +395,31 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             Plotly.newPlot('plotly-container', chartData.data, chartData.layout, { responsive: true, displayModeBar: false });
 
             // Update bottom stats bar
-            const item = allMetrics[key];
             if (item) {
                 document.getElementById('asset-details-bar').innerHTML = `
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">SUPORTE 60D</div>
-                        <div class="text-emerald-400 font-bold">${item.support_60d} ${item.unit}</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">SUPORTE 60D</div>
+                        <div class="text-emerald-400 font-bold text-sm">${item.support_60d} <span class="text-[10px] text-gray-500">${item.unit}</span></div>
                     </div>
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">RESISTÊNCIA 60D</div>
-                        <div class="text-rose-400 font-bold">${item.resistance_60d} ${item.unit}</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">RESISTÊNCIA 60D</div>
+                        <div class="text-rose-400 font-bold text-sm">${item.resistance_60d} <span class="text-[10px] text-gray-500">${item.unit}</span></div>
                     </div>
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">MÍNIMO ANUAL</div>
-                        <div class="text-gray-300 font-bold">${item.min_year}</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">MÍNIMO ANUAL</div>
+                        <div class="text-gray-200 font-bold text-sm">${item.min_year}</div>
                     </div>
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">MÁXIMO ANUAL</div>
-                        <div class="text-gray-300 font-bold">${item.max_year}</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">MÁXIMO ANUAL</div>
+                        <div class="text-gray-200 font-bold text-sm">${item.max_year}</div>
                     </div>
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">VOLATILIDADE (30d)</div>
-                        <div class="text-amber-400 font-bold">${item.volatility_30d}%</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">VOLATILIDADE (30d)</div>
+                        <div class="text-amber-400 font-bold text-sm">${item.volatility_30d}%</div>
                     </div>
-                    <div class="p-2 rounded-lg bg-gray-900/60 border border-gray-800">
-                        <div class="text-gray-500 text-[10px]">STATUS RSI</div>
-                        <div class="text-purple-400 font-bold truncate">${item.rsi_status}</div>
+                    <div class="p-2.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                        <div class="text-gray-500 text-[10px] font-semibold">STATUS RSI</div>
+                        <div class="text-purple-400 font-bold truncate text-sm">${item.rsi_status}</div>
                     </div>
                 `;
             }
