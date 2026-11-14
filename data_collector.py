@@ -6,37 +6,56 @@ from datetime import datetime, timedelta
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 CACHE_FILE = os.path.join(DATA_DIR, "market_data.json")
 
-# Series do Banco Central do Brasil (SGS - Sistema Gerenciador de Series Temporais)
+# Series oficiais do Banco Central do Brasil (SGS - Sistema Gerenciador de Séries Temporais)
 SERIES_MAP = {
     "dolar": {
         "code": 1,
         "name": "Dólar Comercial (USD/BRL)",
         "unit": "R$",
-        "category": "Câmbio"
+        "category": "Câmbio",
+        "icon": "💵"
     },
-    "ipca": {
-        "code": 433,
-        "name": "IPCA (Inflação Mensal)",
-        "unit": "%",
-        "category": "Preços"
+    "euro": {
+        "code": 21619,
+        "name": "Euro Comercial (EUR/BRL)",
+        "unit": "R$",
+        "category": "Câmbio",
+        "icon": "💶"
     },
     "selic": {
         "code": 432,
         "name": "Meta Taxa Selic",
         "unit": "% a.a.",
-        "category": "Juros"
+        "category": "Juros",
+        "icon": "🏦"
     },
-    "ic_br_geral": {
-        "code": 27741,
-        "name": "Índice de Commodities Brasil (IC-Br)",
-        "unit": "Índice",
-        "category": "Commodities"
+    "cdi": {
+        "code": 4389,
+        "name": "Taxa CDI Acumulada",
+        "unit": "% a.a.",
+        "category": "Renda Fixa",
+        "icon": "📈"
+    },
+    "ipca": {
+        "code": 433,
+        "name": "IPCA (Inflação Mensal)",
+        "unit": "%",
+        "category": "Preços",
+        "icon": "🛒"
     },
     "ic_br_agro": {
         "code": 27742,
         "name": "IC-Br Agropecuária (Grãos/Carnes)",
         "unit": "Índice",
-        "category": "Agronegócio"
+        "category": "Agronegócio",
+        "icon": "🌾"
+    },
+    "ic_br_geral": {
+        "code": 27741,
+        "name": "Índice de Commodities Brasil (IC-Br)",
+        "unit": "Índice",
+        "category": "Commodities",
+        "icon": "📦"
     }
 }
 
@@ -46,7 +65,7 @@ def fetch_bacen_series(code: int, days_back: int = 365):
     start_date = (datetime.now() - timedelta(days=days_back)).strftime("%d/%m/%Y")
     
     url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{code}/dados?formato=json&dataInicial={start_date}&dataFinal={end_date}"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MarketPulseAI/1.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MarketPulseAI/2.0"}
     
     try:
         req = urllib.request.Request(url, headers=headers)
@@ -72,7 +91,6 @@ def update_all_market_data(days_back: int = 365, force: bool = False):
     """Atualiza todas as séries e grava o cache local."""
     os.makedirs(DATA_DIR, exist_ok=True)
     
-    # Checar se cache e recente (menos de 6 horas)
     if not force and os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -83,7 +101,7 @@ def update_all_market_data(days_back: int = 365, force: bool = False):
         except Exception:
             pass
 
-    print("[MarketPulse Data] Atualizando indicadores econômicos do Banco Central...")
+    print("[MarketPulse Data] Sincronizando séries financeiras com Banco Central do Brasil...")
     dataset = {
         "last_updated": datetime.now().isoformat(),
         "series": {}
@@ -95,6 +113,7 @@ def update_all_market_data(days_back: int = 365, force: bool = False):
             "name": info["name"],
             "unit": info["unit"],
             "category": info["category"],
+            "icon": info["icon"],
             "code": info["code"],
             "count": len(data),
             "data": data
@@ -107,7 +126,4 @@ def update_all_market_data(days_back: int = 365, force: bool = False):
     return dataset
 
 if __name__ == "__main__":
-    data = update_all_market_data(force=True)
-    print("Séries carregadas:")
-    for k, v in data["series"].items():
-        print(f" - {v['name']}: {v['count']} pontos históricos")
+    update_all_market_data(force=True)
